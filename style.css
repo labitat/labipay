@@ -1,0 +1,120 @@
+
+body {
+    background: white;
+    font-family: verdana, sans-serif;
+    color: black;
+    margin-left: 50px;
+    margin-right: 50px;
+    margin-top: 15px;
+}
+
+
+.header {
+    width: 100%;
+    background: #55cc55;
+    color: white;
+    padding: 5px;
+    padding-right: 1em;
+    font-weight: bold;
+    text-align: right;
+    margin-right: 1em;
+    margin-bottom: 1.5em;
+}
+
+a {
+    text-decoration: none;
+    border: none;
+    border-bottom: 1px #44bb44 dashed;
+    color: #44bb44;
+}
+
+a:hover {
+    border-bottom-style: solid;
+}
+
+h1 {
+    color: #44bb44;
+    font-weight: bold;
+    font-size: 1.7em;
+}
+
+h3 {
+    color: #44bb44;
+    font-weight: bold;
+    font-size: 1em;
+    margin: 0px;
+    padding: 0px;
+    margin-top: 3em;
+    margin-bottom: 0.4em;
+}
+
+.error {
+    border: 2px red solid;
+    background: #ffff55;
+    color: black;
+    padding: 4px;
+    margin-top: 1em;
+    margin-bottom: 1em;
+    width: auto;
+    display: inline-block;
+}
+
+.good {
+    border: 1px #55cc55 solid;
+    background: white;
+    color: #44bb44;
+    padding: 0.8em;
+    margin-top: 1em;
+    margin-bottom: 1em;
+    display: inline-block;
+    width: auto;
+}
+
+.rightbox {
+    border: 1px #55cc55 solid;
+    padding: 0.8em;
+    float: right;
+    margin-left: 5em;
+}
+
+hr.rightboxspacer {
+    height: 1px;
+    color:  #55cc55;
+    width: 100%;
+    border: none;
+    border-top: 1px #55cc55 solid;
+}
+
+
+input {
+    background: white;
+    border: 1px #55cc55 solid;
+    color: black;
+}
+
+select {
+    background: white;
+    border: 1px #55cc55 solid;
+    color: black;
+}
+
+
+input[type=submit] {
+    background: #55cc55;
+    color: white;
+    cursor: pointer;
+}
+
+select[disabled] {
+    background: #dddddd;
+}
+
+input[disabled] {
+    background: #dddddd;
+    pointer: crosshair;
+}
+
+
+.negative {
+    color: red;
+}
