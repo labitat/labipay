@@ -1,0 +1,61 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[T1]{fontenc}
+
+\title{Labipay Terminal API Documentation}
+\usepackage[utf8]{inputenc}
+
+
+\author{Jørgen Elgaard Larsen}
+
+
+\begin{document}
+\maketitle
+
+\section{Terminal Communication}
+There can be several types of terminals: Touch screen based, bar code based,
+vending machines, etc. Terminals can be very dumb, or perform more complex tasks. 
+
+All terminals communicates with the server using JSON over HTTP(S). 
+
+Communication is initiated by the terminal making a request to the
+server and ends with the server sending a response back to the terminal. Each
+request/response is considered an atomic transaction.
+
+If a terminal successfully sends a request but do not receive a response, it
+should assume neither that the response is simply lost and the transaction
+went through; nor that the request was lost and should be
+retransmitted. In such a situation, the proper action depends on the semantics
+of the transaction.
+
+For example, if the transaction was just a user authorisation, the terminal
+can simply try again. On the other hand, if it was a purchase transaction, the
+terminal could try to ask for the account balance and see whether it has
+changed since before the attempted transaction.
+
+In a future version of the API, it may be possible for the terminal to mark
+each transaction with an identifier and later ask whether that transaction
+succeeded. But that is not implemented in this version of the API.
+
+
+\section{Request And Response Format}
+
+As mentioned above, requests must be made using JSON. The proper way is to use
+an HTTP POST with the JSON request as the body.
+
+All requests must contain the following fields:
+
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+    request & The request type, e.g. ``auth'' \\\hline
+    terminal & The terminal ID \\\hline
+    seed & A random text, between 10 and 100 characters \\\hline
+    checksum & A SHA-1 checksum of selected fields, the seed, and a shared secret \\\hline
+
+  \end{tabular} 
+  \caption{Common mandatory request fields}
+\end{table}
+
+
+
+\end{document}
