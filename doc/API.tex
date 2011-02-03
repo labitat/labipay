@@ -7,6 +7,8 @@
 
 \author{Jørgen Elgaard Larsen}
 
+\newcommand{\code}[1]
+   {\textsf{#1}}
 
 \begin{document}
 \maketitle
@@ -30,31 +32,660 @@ of the transaction.
 For example, if the transaction was just a user authorisation, the terminal
 can simply try again. On the other hand, if it was a purchase transaction, the
 terminal could try to ask for the account balance and see whether it has
-changed since before the attempted transaction.
+changed since before the attempted transaction. Or, even better, use
+the \code{lastTrans} request.
 
 In a future version of the API, it may be possible for the terminal to mark
 each transaction with an identifier and later ask whether that transaction
 succeeded. But that is not implemented in this version of the API.
 
 
-\section{Request And Response Format}
+\section{Request And Response Format}\label{sec:rrFormat}
 
 As mentioned above, requests must be made using JSON. The proper way is to use
 an HTTP POST with the JSON request as the body.
 
-All requests must contain the following fields:
+All requests must contain at least the following fields:
 
 \begin{table}[!h]
   \begin{tabular}{|l|l|}
     \hline
     request & The request type, e.g. ``auth'' \\\hline
     terminal & The terminal ID \\\hline
-    seed & A random text, between 10 and 100 characters \\\hline
-    checksum & A SHA-1 checksum of selected fields, the seed, and a shared secret \\\hline
-
+    requestID & A positive integer identifying the request. Must be unique
+      within the terminal -- i.e. a terminal must not send the same ID
+      twice, but is not influenced by what other terminals have sent. If
+      the terminal lacks persistent memory, it should only use
+      increasing request ID's and use the \code{lastTrans} request
+      when booting.\\hline 
+    checksum & A SHA-1 checksum of a concatenation of selected fields,
+      the request id, and a shared secret \\\hline 
+    version & The version of this protocol. For now, the only accepted value is ``1.0''. \\\hline
   \end{tabular} 
   \caption{Common mandatory request fields}
 \end{table}
+
+Depending on the type of request, further fields are also needed. See
+section \ref{sec:requestDetails} below. 
+
+
+When the response has been received by the server, it is processed,
+and a response is sent back. The response consists of a HTTP response
+header, and a JSON representation of the response.
+
+The response always contains at least these fields:
+
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+    status & A three-digit status code. If the transaction went
+       through, the first digit is always 1. If the transaction did not
+       go through, the first digit is never 1.
+       For more details, see section \ref{sec:statusCodes}.\\\hline
+    message & A status message, suitable for displying to humans.\\\hline
+    shortMessage & Same as \code{message}, but guaranteed to be at
+       most 16 characters long.\\\hline
+    checksum & A SHA-1 checksum of the concatenation of status,
+      selected fields and a shared secret \\\hline 
+    version & The version of this protocol. For now, the only accepted
+      value is ``1.0''. \\\hline 
+  \end{tabular} 
+  \caption{Common mandatory response fields}
+\end{table}
+
+Additional fields are used, depending on the request.
+
+\subsection{Number formats}
+Numbers must not contain thousand separators. For integer values, no
+decimal point is allowed. For floating point numbers, use a dot (.) as
+decimal point. For negative numbers, prepend with a dash (-) as a
+minus sign. Do \emph{not} prepend positive numbers with a plus. 
+
+Dates are formatted YYYY-MM-DD, time as HH:MM:SS (24h time). Where
+nothing else is stated, time is UTC.
+
+
+\section{Status Codes}\label{sec:statusCodes} 
+
+As mentioned in section \ref{sec:rrFormat}, the response always
+contains a three-digit status code to indicate whether the transaction went
+through. The first digit of the status code indicates the status category:   
+
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+      1\emph{xx} & The transaction went through. \\\hline
+      2\emph{xx} & User authorisation errors.\\\hline
+      3\emph{xx} & Terminal authorisation errors.\\\hline
+      4\emph{xx} & Request specific errors. See documentation for the
+                   individual request type.\\\hline
+      5\emph{xx} & Request errors. It will not help to re-send the
+                   request.\\\hline
+      6\emph{xx} & Server errors. The request may be valid, but the
+                   server cannot handle it at the moment.\\\hline 
+  \end{tabular} 
+  \caption{Status codes categories}
+\end{table}
+
+
+
+The following status codes are relevant for all requests.
+
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+      100  & OK \\\hline\hline
+      200  & Generic authorisation error.\\\hline
+      201  & User not authorised for this request type.\\\hline
+      202  & User not authorised for this terminal.\\\hline
+      203  & User unknown.\\\hline
+      204  & Bad credentials.\\\hline\hline
+      300  & Unknown terminal.\\\hline
+      301  & Terminal not authorised for this request
+             type.\\\hline
+      302  & Fraud detector triggered.\\\hline\hline
+      500  & Generic request error.\\\hline
+      501  & Malformed request.\\\hline
+      502  & Unknown request type.\\\hline
+      503  & Checksum error.\\\hline
+      504  & Protocol version not supported.\\\hline
+      505  & Missing fields in request.\\\hline
+      506  & Duplicate request ID.\\\hline
+      507  & Request ID too large.\\\hline
+      508  & Request ID not a positive integer\\\hline
+      509  & Field or fields has invalid content\\\hline\hline
+      600  & Generic server error.\\\hline
+      601  & Server busy - try again later.\\\hline
+      602  & Could not connect to database\\\hline
+      603  & Database error while handling the request.\\\hline
+      604  & No network connection.\\\hline
+      666  & Server on fire. Help!\\\hline
+  \end{tabular} 
+  \caption{Common response status codes}
+\end{table}
+
+Apart from these status codes, some request types has further possible
+status codes. Please refer to the doocumentation for each individual
+request type for details. 
+
+
+\section{Request And Response Details}\label{sec:requestDetails} 
+
+
+%%%%%%%%%%
+
+\subsection{cardauth}
+
+Authorise a user from his magnetic card.
+
+\subsubsection{Request}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+    cardhash & A MD5 hash of the card's information on track 2.\\\hline
+    withPin  & Set to ``yes'' if the cardhash includes the user's PIN
+               number. Optional, default ``no''. \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{cardauth} request}
+\end{table}
+
+Checksum fields: request, terminal, requestID, cardhash, shared secret.
+
+\subsubsection{Response}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+      userid  & The user ID of the customer \\\hline
+      handle  & The handle (login name) of the user.\\\hline
+      name    & The real world name of the user, if known.\\\hline
+      account & The account number for the card\\\hline
+      accountName & The name of the account\\\hline
+      balance & The balance for the account\\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{cardauth} response}
+\end{table}
+
+Checksum fields: status, request, terminal, requestID, account, shared secret.
+
+
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+      250  & PIN required\\\hline
+      251  & PIN not required - try without PIN\\\hline
+      252  & Authorisation type not allowed. Use username/passsword.\\\hline
+  \end{tabular} 
+  \caption{Status codes for the \code{cardauth} response}
+\end{table}
+
+
+%%%%%%%%%%
+
+\subsection{auth}
+
+Authorise a user by username and password.
+
+This is a \emph{very} sensitive transaction and must only be sent
+over a trusted line, e.g. HTTPS.
+
+\subsubsection{Request}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+    usename & The user name in cleartext.\\\hline
+    password & The user's password in cleartext.\\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{auth} request}
+\end{table}
+
+Checksum fields: request, terminal, requestID, username, password,
+shared secret. 
+
+\subsubsection{Response}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+      userid  & The user ID of the customer \\\hline
+      handle  & The handle (login name) of the user.\\\hline
+      name    & The real world name of the user, if known.\\\hline
+      accounts & An array of JSON objects each representing
+                 an account. Attributes are: number, name, balance.\\\hline
+       
+  \end{tabular} 
+  \caption{Extra fields in \code{auth} response}
+\end{table}
+
+Checksum fields: status, request, terminal, requestID, userid, shared secret.
+
+No extra status codes.
+
+
+%%%%%%%%%%
+
+\subsection{buy}
+
+\subsubsection{Request}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+     account & The account to charge. For cash sale, use account
+               number 0.\\\hline
+     product & The product number to buy.\\
+     \multicolumn{2}{l}{\emph{- or -}}\\
+     ean     & The EAN code of the product to buy.\\\hline
+     quantum & The amount to buy of the product.\\\hline
+     gamble  & If set to ``yes'', enable gamble mode. Default ``no''.\\\hline 
+  \end{tabular} 
+  \caption{Extra fields in \code{buy} request}
+\end{table}
+
+Checksum fields: request, terminal, requestID, account, product/ean,
+quantum, shared secret.
+
+\subsubsection{Response}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+     price         & The price of the product, per unit\\\hline
+     totalprice    & The total price of this purchase.\\\hline
+     newBalance    & The new balance on the user's account.\\\hline
+     productName   & Name of the product. \\\hline
+     productShortName & Name of the product, at most 16 characters long.\\\hline
+     productUnit   & The unit of the product, e.g. ``m''. \\\hline
+     productNumber & The product number. \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{buy} response}
+\end{table}
+
+Checksum fields: status, request, terminal, requestID, productshotNme,
+newBalance, shared secret.
+
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+      451  & Sold out. No purchase possible.\\\hline
+      452  & Gambling not allowed.\\\hline
+      453  & No credit for the user.\\\hline
+      454  & Cash sale not allowed for this product.\\\hline
+      455  & Unknown product. \\\hline
+      456  & Only integer quantum allowed. \\\hline
+      457  & Quantum too large
+  \end{tabular} 
+  \caption{Status codes for the \code{buy} response}
+\end{table}
+
+%%%%%%%%%%
+
+\subsection{list}
+
+Retrieve information on products in the database. Only products
+relevant for this terminal is retrieved.
+
+\subsubsection{Request}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+     categories & An array of category ID's. Only show products in
+                  these categories. Optional, default show all top level
+                  categories.\\\hline 
+     shops      & An array of shop ID's. Only show products for these
+                  shops. Optional, default no constraint.  \\\hline
+     levels     & Only retrieve data for $n$ levels. Optional, default all
+                  levels. If set to 0, no product info is returned.\\\hline 
+     shopInfo   & What shops to include information about. If set to
+                  ``none'', no shop informtion is included. If set to
+                  ``all'', information about all shops is included. If
+                  set to ``relevant'', only the shops for which there
+                  are products returned, are included. Optional,
+                  default ``all''.  
+  \end{tabular} 
+  \caption{Extra fields in \code{list} request}
+\end{table}
+
+Please note that setting none of the above fields will result in a
+full dump of the database for this terminal. Do not do that lightly,
+as it may potentially be a large list. 
+
+Checksum fields: request, terminal, requestID, shared secret.
+
+\subsubsection{Response}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+      shops & An array of shop objects. Each object has \code{shopID} and
+             \code{shopName}\\\hline
+      categories & An array of categories. Each category has a
+                   \code{categoryId}, \code{categoryName} and \code{products}.
+                   It also has \code{categories}, which is an array of sub
+                   categories.
+
+                   The \code{products} is an array of products, each containing
+                   \code{productID}, \code{productName},
+                   \code{productShortName}, \code{productUnit},
+                   \code{productPrice}, \code{integerQuantum} (yes/no),
+                   \code{productEAN}, \code{shopID}, \code{categoryID}. \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{list} response}
+\end{table}
+
+Checksum fields: request, terminal, requestID, shared secret.
+
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+      353  & Listing not allowed for this terminal \\\hline
+      460  & Unknown shop in list.\\\hline
+      461  & Unknown category in list\\\hline
+      462  & Too many levels\\\hline
+      463  & Illegal value in field\\\hline
+  \end{tabular} 
+  \caption{Status codes for the \code{list} response}
+\end{table}
+
+%%%%%%%%%%
+
+\subsection{informSales}
+
+\subsubsection{Request}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} request}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+\subsubsection{Response}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} response}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+      100  & OK \\\hline
+      201  & \\\hline
+      202  & \\\hline
+      203  & \\\hline
+  \end{tabular} 
+  \caption{Status codes for the \code{} response}
+\end{table}
+
+%%%%%%%%%%
+
+\subsection{lastTrans}
+
+\subsubsection{Request}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} request}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+\subsubsection{Response}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} response}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+%%%%%%%%%%
+
+\subsection{resetTrans}
+
+\subsubsection{Request}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} request}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+\subsubsection{Response}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+     newValue & The next request ID value to use.  \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} response}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+%%%%%%%%%%
+
+\subsection{addMoney}
+
+\subsubsection{Request}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} request}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+\subsubsection{Response}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} response}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+%%%%%%%%%%
+
+\subsection{transfer}
+
+\subsubsection{Request}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} request}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+\subsubsection{Response}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} response}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+%%%%%%%%%%
+
+\subsection{listProducts}
+
+\subsubsection{Request}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} request}
+\end{table}
+
+Checksum fields: request, terminal, requestID, shared secret.
+
+\subsubsection{Response}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} response}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+%%%%%%%%%%
+
+\subsection{registerCard}
+
+\subsubsection{Request}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} request}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+\subsubsection{Response}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} response}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+%%%%%%%%%%
+
+\subsection{revertBuy}
+
+\subsubsection{Request}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} request}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+\subsubsection{Response}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} response}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+%%%%%%%%%%
+
+\subsection{priceCheck}
+
+\subsubsection{Request}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} request}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+\subsubsection{Response}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} response}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+
+
+%%%%%%%%%%
+
+\subsection{checkCertified}
+
+\subsubsection{Request}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} request}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+\subsubsection{Response}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} response}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+
+
+%%%%%%%%%%
+
+\subsection{ping}
+
+\subsubsection{Request}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} request}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+\subsubsection{Response}
+\begin{table}[!h]
+  \begin{tabular}{|l|l|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} response}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+
+
+\section{Vulnrablities}
 
 
 
