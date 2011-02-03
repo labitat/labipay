@@ -76,7 +76,7 @@ CREATE TABLE category (
        parent	      int		null,
        
        INDEX (parent),
-       CONSTRAINT FOREIGN KEY (parent) REFERENCES parent (id)
+       CONSTRAINT FOREIGN KEY (parent) REFERENCES category (id)
 );
 
 
