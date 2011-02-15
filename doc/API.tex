@@ -8,7 +8,15 @@
 \author{Jørgen Elgaard Larsen}
 
 \newcommand{\code}[1]
-   {\textsf{#1}}
+   {\textsf{\mbox{#1}}}
+
+\newcommand{\rightcellwidth}{25em}
+
+\newcommand{\reqsection}[1]
+    {\subsubsection{The \code{#1} Request}}
+
+\newcommand{\partsection}[1]
+           {\paragraph{#1}}
 
 \begin{document}
 \maketitle
@@ -35,10 +43,6 @@ terminal could try to ask for the account balance and see whether it has
 changed since before the attempted transaction. Or, even better, use
 the \code{lastTrans} request.
 
-In a future version of the API, it may be possible for the terminal to mark
-each transaction with an identifier and later ask whether that transaction
-succeeded. But that is not implemented in this version of the API.
-
 
 \section{Request And Response Format}\label{sec:rrFormat}
 
@@ -47,8 +51,8 @@ an HTTP POST with the JSON request as the body.
 
 All requests must contain at least the following fields:
 
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
     request & The request type, e.g. ``auth'' \\\hline
     terminal & The terminal ID \\\hline
@@ -57,10 +61,16 @@ All requests must contain at least the following fields:
       twice, but is not influenced by what other terminals have sent. If
       the terminal lacks persistent memory, it should only use
       increasing request ID's and use the \code{lastTrans} request
-      when booting.\\hline 
+      when booting.\\\hline 
+    session & A Session key obtained through an \code{auth} request or
+      similar. Must be included in every request except when otherwise
+      noted in the request specification.\\\hline
+    renew\_session & If set to the value ``yes'', the session is
+      renewed if possible.\\\hline
     checksum & A SHA-1 checksum of a concatenation of selected fields,
       the request id, and a shared secret \\\hline 
-    version & The version of this protocol. For now, the only accepted value is ``1.0''. \\\hline
+    version & The version of this protocol. For now, the only accepted
+      value is ``1.0''. \\\hline 
   \end{tabular} 
   \caption{Common mandatory request fields}
 \end{table}
@@ -75,8 +85,8 @@ header, and a JSON representation of the response.
 
 The response always contains at least these fields:
 
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
     status & A three-digit status code. If the transaction went
        through, the first digit is always 1. If the transaction did not
@@ -86,7 +96,11 @@ The response always contains at least these fields:
     shortMessage & Same as \code{message}, but guaranteed to be at
        most 16 characters long.\\\hline
     checksum & A SHA-1 checksum of the concatenation of status,
-      selected fields and a shared secret \\\hline 
+      selected fields and a shared secret \\\hline
+    session & A session key to be included in future requests in the
+      same session.\\\hline
+    timeout & An integer representing the number of seconds until the
+      current session expires.\\\hline
     version & The version of this protocol. For now, the only accepted
       value is ``1.0''. \\\hline 
   \end{tabular} 
@@ -111,8 +125,8 @@ As mentioned in section \ref{sec:rrFormat}, the response always
 contains a three-digit status code to indicate whether the transaction went
 through. The first digit of the status code indicates the status category:   
 
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
       1\emph{xx} & The transaction went through. \\\hline
       2\emph{xx} & User authorisation errors.\\\hline
@@ -129,17 +143,19 @@ through. The first digit of the status code indicates the status category:
 
 
 
-The following status codes are relevant for all requests.
+Table \ref{tab:statusCodes} shows the status codes that are relevant
+for all requests. 
 
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\begin{table}[!hp]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
       100  & OK \\\hline\hline
       200  & Generic authorisation error.\\\hline
       201  & User not authorised for this request type.\\\hline
       202  & User not authorised for this terminal.\\\hline
       203  & User unknown.\\\hline
-      204  & Bad credentials.\\\hline\hline
+      204  & Bad credentials.\\\hline
+      205  & Session timed out.\\\hline
       300  & Unknown terminal.\\\hline
       301  & Terminal not authorised for this request
              type.\\\hline
@@ -161,26 +177,28 @@ The following status codes are relevant for all requests.
       604  & No network connection.\\\hline
       666  & Server on fire. Help!\\\hline
   \end{tabular} 
-  \caption{Common response status codes}
+  \caption{Common response status codes}\label{tab:statusCodes}
 \end{table}
 
 Apart from these status codes, some request types has further possible
 status codes. Please refer to the doocumentation for each individual
 request type for details. 
 
+\clearpage
 
 \section{Request And Response Details}\label{sec:requestDetails} 
 
 
 %%%%%%%%%%
+\subsection{User Authorisation}
 
-\subsection{cardauth}
+\reqsection{cardauth}
 
 Authorise a user from his magnetic card.
 
-\subsubsection{Request}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Request}
+\begin{table}[!hb]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
     cardhash & A MD5 hash of the card's information on track 2.\\\hline
     withPin  & Set to ``yes'' if the cardhash includes the user's PIN
@@ -191,9 +209,11 @@ Authorise a user from his magnetic card.
 
 Checksum fields: request, terminal, requestID, cardhash, shared secret.
 
-\subsubsection{Response}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+Does not require a session.
+
+\partsection{Response}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
       userid  & The user ID of the customer \\\hline
       handle  & The handle (login name) of the user.\\\hline
@@ -208,12 +228,13 @@ Checksum fields: request, terminal, requestID, cardhash, shared secret.
 Checksum fields: status, request, terminal, requestID, account, shared secret.
 
 
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
       250  & PIN required\\\hline
-      251  & PIN not required - try without PIN\\\hline
-      252  & Authorisation type not allowed. Use username/passsword.\\\hline
+      251  & PIN not required --- try without PIN\\\hline
+      252  & Authorisation type not allowed. Use the \code{auth}
+      request instead.\\\hline
   \end{tabular} 
   \caption{Status codes for the \code{cardauth} response}
 \end{table}
@@ -221,16 +242,16 @@ Checksum fields: status, request, terminal, requestID, account, shared secret.
 
 %%%%%%%%%%
 
-\subsection{auth}
+\reqsection{auth}
 
 Authorise a user by username and password.
 
 This is a \emph{very} sensitive transaction and must only be sent
 over a trusted line, e.g. HTTPS.
 
-\subsubsection{Request}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Request}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
     usename & The user name in cleartext.\\\hline
     password & The user's password in cleartext.\\\hline
@@ -241,9 +262,11 @@ over a trusted line, e.g. HTTPS.
 Checksum fields: request, terminal, requestID, username, password,
 shared secret. 
 
-\subsubsection{Response}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+Does not require a session.
+
+\partsection{Response}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
       userid  & The user ID of the customer \\\hline
       handle  & The handle (login name) of the user.\\\hline
@@ -262,11 +285,41 @@ No extra status codes.
 
 %%%%%%%%%%
 
-\subsection{buy}
+\reqsection{logout}
 
-\subsubsection{Request}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+Terminate a session.
+
+\partsection{Request}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
+    \hline
+    session & The session to terminate.\\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{logout} request}
+\end{table}
+
+Checksum fields: request, terminal, requestID, session,
+shared secret. 
+
+
+\partsection{Response}
+No extra fields.
+
+Checksum fields: status, request, terminal, requestID, shared secret.
+
+No extra status codes.
+
+Does not return a session key.
+
+%%%%%%%%%%
+
+\subsection{Purchase Transactions}
+
+\reqsection{buy}
+
+\partsection{Request}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
      account & The account to charge. For cash sale, use account
                number 0.\\\hline
@@ -282,9 +335,9 @@ No extra status codes.
 Checksum fields: request, terminal, requestID, account, product/ean,
 quantum, shared secret.
 
-\subsubsection{Response}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Response}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
      price         & The price of the product, per unit\\\hline
      totalprice    & The total price of this purchase.\\\hline
@@ -300,8 +353,8 @@ quantum, shared secret.
 Checksum fields: status, request, terminal, requestID, productshotNme,
 newBalance, shared secret.
 
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
       451  & Sold out. No purchase possible.\\\hline
       452  & Gambling not allowed.\\\hline
@@ -316,14 +369,14 @@ newBalance, shared secret.
 
 %%%%%%%%%%
 
-\subsection{list}
+\reqsection{list}
 
 Retrieve information on products in the database. Only products
 relevant for this terminal is retrieved.
 
-\subsubsection{Request}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Request}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
      categories & An array of category ID's. Only show products in
                   these categories. Optional, default show all top level
@@ -348,9 +401,9 @@ as it may potentially be a large list.
 
 Checksum fields: request, terminal, requestID, shared secret.
 
-\subsubsection{Response}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Response}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
       shops & An array of shop objects. Each object has \code{shopID} and
              \code{shopName}\\\hline
@@ -370,8 +423,8 @@ Checksum fields: request, terminal, requestID, shared secret.
 
 Checksum fields: request, terminal, requestID, shared secret.
 
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
       353  & Listing not allowed for this terminal \\\hline
       460  & Unknown shop in list.\\\hline
@@ -384,11 +437,11 @@ Checksum fields: request, terminal, requestID, shared secret.
 
 %%%%%%%%%%
 
-\subsection{informSales}
+\reqsection{informSales}
 
-\subsubsection{Request}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Request}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
        \\\hline
   \end{tabular} 
@@ -397,9 +450,9 @@ Checksum fields: request, terminal, requestID, shared secret.
 
 Checksum fields: request, terminal, requestID, , shared secret.
 
-\subsubsection{Response}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Response}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
        \\\hline
   \end{tabular} 
@@ -408,8 +461,8 @@ Checksum fields: request, terminal, requestID, , shared secret.
 
 Checksum fields: request, terminal, requestID, , shared secret.
 
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
       100  & OK \\\hline
       201  & \\\hline
@@ -421,11 +474,11 @@ Checksum fields: request, terminal, requestID, , shared secret.
 
 %%%%%%%%%%
 
-\subsection{lastTrans}
+\reqsection{lastTrans}
 
-\subsubsection{Request}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Request}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
        \\\hline
   \end{tabular} 
@@ -434,9 +487,9 @@ Checksum fields: request, terminal, requestID, , shared secret.
 
 Checksum fields: request, terminal, requestID, , shared secret.
 
-\subsubsection{Response}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Response}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
        \\\hline
   \end{tabular} 
@@ -447,11 +500,11 @@ Checksum fields: request, terminal, requestID, , shared secret.
 
 %%%%%%%%%%
 
-\subsection{resetTrans}
+\reqsection{resetTrans}
 
-\subsubsection{Request}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Request}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
        \\\hline
   \end{tabular} 
@@ -460,9 +513,9 @@ Checksum fields: request, terminal, requestID, , shared secret.
 
 Checksum fields: request, terminal, requestID, , shared secret.
 
-\subsubsection{Response}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Response}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
      newValue & The next request ID value to use.  \\\hline
   \end{tabular} 
@@ -473,11 +526,11 @@ Checksum fields: request, terminal, requestID, , shared secret.
 
 %%%%%%%%%%
 
-\subsection{addMoney}
+\reqsection{addMoney}
 
-\subsubsection{Request}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Request}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
        \\\hline
   \end{tabular} 
@@ -486,9 +539,9 @@ Checksum fields: request, terminal, requestID, , shared secret.
 
 Checksum fields: request, terminal, requestID, , shared secret.
 
-\subsubsection{Response}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Response}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
        \\\hline
   \end{tabular} 
@@ -499,11 +552,11 @@ Checksum fields: request, terminal, requestID, , shared secret.
 
 %%%%%%%%%%
 
-\subsection{transfer}
+\reqsection{transfer}
 
-\subsubsection{Request}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Request}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
        \\\hline
   \end{tabular} 
@@ -512,9 +565,9 @@ Checksum fields: request, terminal, requestID, , shared secret.
 
 Checksum fields: request, terminal, requestID, , shared secret.
 
-\subsubsection{Response}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Response}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
        \\\hline
   \end{tabular} 
@@ -525,11 +578,11 @@ Checksum fields: request, terminal, requestID, , shared secret.
 
 %%%%%%%%%%
 
-\subsection{listProducts}
+\reqsection{listProducts}
 
-\subsubsection{Request}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Request}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
        \\\hline
   \end{tabular} 
@@ -538,9 +591,9 @@ Checksum fields: request, terminal, requestID, , shared secret.
 
 Checksum fields: request, terminal, requestID, shared secret.
 
-\subsubsection{Response}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Response}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
        \\\hline
   \end{tabular} 
@@ -551,11 +604,11 @@ Checksum fields: request, terminal, requestID, , shared secret.
 
 %%%%%%%%%%
 
-\subsection{registerCard}
+\reqsection{registerCard}
 
-\subsubsection{Request}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Request}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
        \\\hline
   \end{tabular} 
@@ -564,9 +617,9 @@ Checksum fields: request, terminal, requestID, , shared secret.
 
 Checksum fields: request, terminal, requestID, , shared secret.
 
-\subsubsection{Response}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Response}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
        \\\hline
   \end{tabular} 
@@ -577,11 +630,11 @@ Checksum fields: request, terminal, requestID, , shared secret.
 
 %%%%%%%%%%
 
-\subsection{revertBuy}
+\reqsection{revertBuy}
 
-\subsubsection{Request}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Request}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
        \\\hline
   \end{tabular} 
@@ -590,9 +643,9 @@ Checksum fields: request, terminal, requestID, , shared secret.
 
 Checksum fields: request, terminal, requestID, , shared secret.
 
-\subsubsection{Response}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Response}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
        \\\hline
   \end{tabular} 
@@ -603,11 +656,11 @@ Checksum fields: request, terminal, requestID, , shared secret.
 
 %%%%%%%%%%
 
-\subsection{priceCheck}
+\reqsection{priceCheck}
 
-\subsubsection{Request}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Request}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
        \\\hline
   \end{tabular} 
@@ -616,37 +669,9 @@ Checksum fields: request, terminal, requestID, , shared secret.
 
 Checksum fields: request, terminal, requestID, , shared secret.
 
-\subsubsection{Response}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
-    \hline
-       \\\hline
-  \end{tabular} 
-  \caption{Extra fields in \code{} response}
-\end{table}
-
-Checksum fields: request, terminal, requestID, , shared secret.
-
-
-
-%%%%%%%%%%
-
-\subsection{checkCertified}
-
-\subsubsection{Request}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
-    \hline
-       \\\hline
-  \end{tabular} 
-  \caption{Extra fields in \code{} request}
-\end{table}
-
-Checksum fields: request, terminal, requestID, , shared secret.
-
-\subsubsection{Response}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Response}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
        \\\hline
   \end{tabular} 
@@ -659,11 +684,11 @@ Checksum fields: request, terminal, requestID, , shared secret.
 
 %%%%%%%%%%
 
-\subsection{ping}
+\reqsection{checkCertified}
 
-\subsubsection{Request}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Request}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
        \\\hline
   \end{tabular} 
@@ -672,9 +697,37 @@ Checksum fields: request, terminal, requestID, , shared secret.
 
 Checksum fields: request, terminal, requestID, , shared secret.
 
-\subsubsection{Response}
-\begin{table}[!h]
-  \begin{tabular}{|l|l|}
+\partsection{Response}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} response}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+
+
+%%%%%%%%%%
+
+\reqsection{ping}
+
+\partsection{Request}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
+    \hline
+       \\\hline
+  \end{tabular} 
+  \caption{Extra fields in \code{} request}
+\end{table}
+
+Checksum fields: request, terminal, requestID, , shared secret.
+
+\partsection{Response}
+\begin{table}[!ht]
+  \begin{tabular}{|l|p{\rightcellwidth}|}
     \hline
        \\\hline
   \end{tabular} 
